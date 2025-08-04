@@ -1,0 +1,36 @@
+# 默认的playbook文件，用于同步SSL证书，并重载Web服务
+---
+- name: 同步SSL证书
+  hosts: ssl_servers
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: 创建目标目录
+      file:
+        path: "{{ ssl_target_path | dirname }}"
+        state: directory
+        mode: '0755'
+    
+    - name: 复制证书文件
+      copy:
+        src: "{{ ssl_source_path }}/"
+        dest: "{{ ssl_target_path }}/"
+        backup: yes
+        owner: root
+        group: root
+    
+    - name: 设置证书文件权限
+      file:
+        path: "{{ ssl_target_path }}"
+        state: directory
+        mode: '0644'
+        recurse: yes
+    
+    - name: 重载服务
+      shell: "{{ reload_cmd }}"
+      register: reload_result
+      failed_when: reload_result.rc != 0
+    
+    - name: 输出重载结果
+      debug:
+        var: reload_result.stdout_lines

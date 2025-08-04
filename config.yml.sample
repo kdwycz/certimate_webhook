@@ -1,0 +1,26 @@
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8080
+  log_level: "INFO"
+  webhook_path: "cert-sync/a8f3b9e2c4d6f1a7b5e9c3d8f2a6b4e8"
+
+# 服务器组配置
+server_groups:
+  - name: "nginx_servers"
+    hosts:
+      - "192.168.1.10"
+      - "192.168.1.11"
+    ssh_user: "ubuntu"
+    # ssh_pass: "your_password"
+    ssh_key_path: "~/.ssh/id_rsa"
+    # ssh_port: 22
+
+# Playbook映射配置
+playbook_mappings:
+  - key: "nginx.example.com"
+    server_groups: ["nginx_servers"]
+    playbook_file: "ssl_sync.yml"
+    var_ssl_source_path: "/etc/ssl/certs/nginx.example.com"
+    var_ssl_target_path: "/etc/nginx/ssl/nginx.example.com"
+    var_reload_cmd: "systemctl reload nginx"
