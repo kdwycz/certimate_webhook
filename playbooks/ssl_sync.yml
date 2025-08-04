@@ -15,15 +15,13 @@
       copy:
         src: "{{ ssl_source_path }}/"
         dest: "{{ ssl_target_path }}/"
-        backup: yes
-        owner: root
-        group: root
+        # backup: yes
     
     - name: 设置证书文件权限
       file:
         path: "{{ ssl_target_path }}"
         state: directory
-        mode: '0644'
+        mode: '0755'
         recurse: yes
     
     - name: 重载服务
