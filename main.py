@@ -199,11 +199,12 @@ def setup_logging():
     # 清除loguru默认处理器  
     logger.remove()
     
-    # 添加loguru处理器
+    # 添加loguru处理器 - 输出到stdout用于supervisor捕获
+    import sys
     logger.add(
-        lambda msg: print(msg, end=""),
+        sys.stdout,
         level=global_config.server.log_level,
-        format="{time:HH:mm:ss} | {level} | {message}",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
     )
     
     # 拦截标准logging到loguru
