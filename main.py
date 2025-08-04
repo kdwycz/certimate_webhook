@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -64,6 +65,29 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """统一访问日志中间件"""
+    start_time = asyncio.get_event_loop().time()
+    
+    # 获取客户端IP
+    client_ip = request.client.host if request.client else "unknown"
+    
+    # 执行请求
+    response = await call_next(request)
+    
+    # 计算处理时间
+    process_time = asyncio.get_event_loop().time() - start_time
+    
+    # 记录访问日志
+    logger.info(
+        f'{client_ip} - "{request.method} {request.url.path}" '
+        f'{response.status_code} {process_time:.3f}s'
+    )
+    
+    return response
 
 
 @app.get("/")
@@ -151,14 +175,44 @@ async def sync_ssl_certificate_task(key: str, playbook_config, server_groups):
         logger.error(f"SSL证书同步任务异常: {e}")
 
 
+class InterceptHandler(logging.Handler):
+    """日志拦截器 - 将标准logging重定向到loguru"""
+    
+    def emit(self, record):
+        # 获取对应的loguru级别
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # 查找调用者信息
+        frame, depth = logging.currentframe(), 2
+        while frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
 def setup_logging():
-    """设置日志 - 简化配置，由supervisor处理轮转"""
+    """设置统一日志管理 - 拦截所有日志到loguru"""
+    # 清除loguru默认处理器  
     logger.remove()
+    
+    # 添加loguru处理器
     logger.add(
         lambda msg: print(msg, end=""),
         level=global_config.server.log_level,
         format="{time:HH:mm:ss} | {level} | {message}",
     )
+    
+    # 拦截标准logging到loguru
+    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+    
+    # 禁用uvicorn的默认日志处理器
+    for logger_name in ['uvicorn', 'uvicorn.error', 'uvicorn.access', 'fastapi']:
+        logging.getLogger(logger_name).handlers = []
+        logging.getLogger(logger_name).propagate = True
 
 
 def main():
@@ -171,13 +225,13 @@ def main():
     logger.info(f"监听地址: {global_config.server.host}:{global_config.server.port}")
     logger.info("配置文件: config.yml")
 
-    # 启动服务
+    # 启动服务 - 禁用uvicorn内置日志配置
     uvicorn.run(
         "main:app",
         host=global_config.server.host,
         port=global_config.server.port,
-        log_level=global_config.server.log_level.lower(),
-        access_log=True,
+        log_config=None,  # 禁用uvicorn默认日志配置
+        access_log=False,  # 禁用访问日志，统一由loguru管理
     )
 
 

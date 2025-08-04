@@ -9,7 +9,7 @@
 - 🛡️ **安全机制**: 可配置的webhook路径
 - 📊 **灵活配置**: YAML配置文件，支持多服务器组和域名映射
 - 🔄 **自动部署**: Supervisor进程管理，自动重启和监控
-- 📝 **详细日志**: 基于loguru的结构化日志记录，supervisor处理轮转
+- 📝 **统一日志**: 完全统一的日志管理，所有组件日志通过loguru处理
 - 🏃 **异步处理**: 后台任务处理，不阻塞webhook响应
 - 🌐 **通用兼容**: 支持Nginx、Apache、HAProxy等多种Web服务器
 
@@ -78,7 +78,7 @@ curl http://localhost:8080/health
 # 测试SSL更新
 curl -X POST 'http://localhost:8080/cert-sync/your-path' \
   -H "Content-Type: application/json" \
-  -d '{"name": "example.com"}'
+  -d '{"name": "nginx.example.com"}'
 ```
 
 ### 配置文件结构
@@ -90,7 +90,6 @@ server:
   port: 8080
   log_level: "INFO"
   webhook_path: "cert-sync/your-secure-path"
-  playbook_file: "ssl_sync.yml"  # 可自定义playbook文件名
 
 # 服务器组配置
 server_groups:
@@ -99,13 +98,14 @@ server_groups:
     ssh_user: "SSH用户名"
     ssh_key_path: "SSH私钥路径"
 
-# 域名映射配置
-domain_mappings:
-  - domain: "域名"
+# Playbook映射配置
+playbook_mappings:
+  - key: "证书标识符（域名或服务名）"
     server_groups: ["服务器组列表"]
-    ssl_source_path: "SSL证书源路径"
-    ssl_target_path: "目标服务器SSL路径"
-    reload_cmd: "服务重载命令（支持Nginx、Apache、HAProxy等）"
+    playbook_file: "ssl_sync.yml"
+    var_ssl_source_path: "SSL证书源路径"
+    var_ssl_target_path: "目标服务器SSL路径"
+    var_reload_cmd: "服务重载命令（支持Nginx、Apache、HAProxy等）"
 ```
 
 ## API接口
@@ -123,7 +123,7 @@ POST /{webhook_path}
 Content-Type: application/json
 
 {
-  "name": "域名"
+  "name": "证书标识符（与配置中的key对应）"
 }
 ```
 
@@ -188,15 +188,17 @@ certimate_webhook/
 
 2. **修改配置文件**：
    ```yaml
-   server:
-     playbook_file: "my_ssl_sync.yml"  # 使用自定义playbook
+   playbook_mappings:
+     - key: "nginx.example.com"
+       server_groups: ["nginx_servers"]
+       playbook_file: "my_ssl_sync.yml"  # 使用自定义playbook
    ```
 
 3. **可用变量**：
-   - `{{ ssl_source_path }}`: SSL证书源路径
-   - `{{ ssl_target_path }}`: SSL证书目标路径  
+   - `{{ ssl_source_path }}`: SSL证书源路径（来自var_ssl_source_path）
+   - `{{ ssl_target_path }}`: SSL证书目标路径（来自var_ssl_target_path）
    - `{{ ssl_target_parent_dir }}`: 目标路径的父目录
-   - `{{ reload_cmd }}`: 服务重载命令
+   - `{{ reload_cmd }}`: 服务重载命令（来自var_reload_cmd）
 
 4. **自定义示例**：
    ```yaml
